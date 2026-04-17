@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stack & Heap Animation v2.4</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #21262d;
+    --border: #30363d; --text: #e6edf3; --text-dim: #7d8590;
+    --blue: #58a6ff; --orange: #f97316; --green: #3fb950;
+    --yellow: #d29922; --purple: #bc8cff; --teal: #39d3c3;
+    --pink: #f778ba; --addr-color: #f0c674; --str-color: #a5d6ff;
+    --char-color: #f778ba;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'Space Grotesk',sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+  header { display:flex; align-items:center; justify-content:space-between; padding:10px 20px; background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0; }
+  header h1 { font-size:0.9rem; font-weight:600; color:var(--text-dim); letter-spacing:0.05em; text-transform:uppercase; }
+  .step-counter { font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-dim); }
+  .progress { width:100%; height:2px; background:var(--border); flex-shrink:0; }
+  .progress-bar { height:100%; background:var(--orange); transition:width 0.3s ease; }
+  .main { display:grid; grid-template-columns:1fr 1fr; flex:1; overflow:hidden; }
+  .code-panel { background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+  .panel-title { padding:5px 14px; font-size:0.68rem; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid var(--border); background:var(--bg); flex-shrink:0; }
+  .code-scroll { overflow-y:auto; flex:1; padding:10px 0; }
+  .code-line { display:flex; align-items:stretch; font-family:'JetBrains Mono',monospace; font-size:0.78rem; line-height:1.6; padding:1px 0; position:relative; }
+  .code-line.active { background:rgba(255,165,0,0.13); }
+  .code-line.active::before { content:''; position:absolute; left:0; top:0; bottom:0; width:10px; background:var(--orange); }
+  .code-line.callmark { background:transparent; }
+  .code-line.callmark::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; border-left:7px dashed rgba(249,115,22,0.6); background:transparent; }  .line-num { width:34px; text-align:right; padding-right:10px; color:var(--text-dim); flex-shrink:0; user-select:none; font-size:0.68rem; }
+  .line-content { flex:1; padding-right:10px; white-space:pre; }
+  .kw{color:#ff7b72} .type{color:#79c0ff} .fn{color:#d2a8ff} .num{color:#79c0ff} .str{color:#a5d6ff} .op{color:#ff7b72} .bracket{color:#f0f6fc}
+  .diagram-panel { background:var(--bg); display:flex; flex-direction:column; overflow:hidden; }
+  .diagram-content { flex:1; display:flex; gap:0; overflow:hidden; }
+  .stack-area { flex:0 0 58%; display:flex; flex-direction:column; overflow:hidden; padding:8px 4px 0 8px; }
+  .heap-area { flex:1; display:flex; flex-direction:column; overflow:hidden; padding:8px 8px 0 4px; }
+  .area-label { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-dim); padding:2px 4px; border-bottom:1px solid var(--border); flex-shrink:0; margin-bottom:4px; }
+  .frames-container { flex:1; display:flex; flex-direction:column; gap:4px; overflow-y:auto; padding:0 2px; justify-content:flex-end; }
+  .heap-container { flex:1; display:flex; flex-direction:column; gap:5px; overflow-y:auto; }
+  .frame { display:flex; border-radius:4px; background:var(--surface); overflow:hidden; animation:frameIn 0.25s ease; flex-shrink:0; border:1px solid var(--border); }
+  @keyframes frameIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+  .frame-side { width:20px; flex-shrink:0; display:flex; align-items:center; justify-content:center; padding:4px 0; }
+  .frame-side-text { font-size:0.52rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; writing-mode:vertical-rl; transform:rotate(180deg); white-space:nowrap; opacity:0.9; }
+  .frame.main-frame .frame-side{background:rgba(88,166,255,0.18)} .frame.main-frame .frame-side-text{color:var(--blue)}
+  .frame.cfg-frame .frame-side{background:rgba(249,115,22,0.18)} .frame.cfg-frame .frame-side-text{color:var(--orange)}
+  .frame.ab-frame .frame-side{background:rgba(57,211,195,0.18)} .frame.ab-frame .frame-side-text{color:var(--teal)}
+  .frame.ca-frame .frame-side{background:rgba(63,185,80,0.18)} .frame.ca-frame .frame-side-text{color:var(--green)}
+  .frame.pr-frame .frame-side{background:rgba(210,153,34,0.18)} .frame.pr-frame .frame-side-text{color:var(--yellow)}
+  .frame-body { flex:1; padding:3px 5px; display:flex; flex-direction:column-reverse; gap:2px; border-left:1px solid var(--border); }
+  .var-row { display:flex; align-items:center; gap:4px; padding:2px 3px; border-radius:2px; animation:varIn 0.2s ease; flex-wrap:nowrap; }
+  @keyframes varIn { from{opacity:0;transform:translateX(-3px)} to{opacity:1;transform:translateX(0)} }
+  .var-row.is-param { background:rgba(255,255,255,0.03); }
+  .var-badge { font-size:0.52rem; padding:1px 3px; border-radius:2px; font-weight:700; flex-shrink:0; text-transform:uppercase; }
+  .badge-local{background:rgba(63,185,80,0.15);color:var(--green)} .badge-param{background:rgba(249,115,22,0.15);color:var(--orange)}
+  .var-name { font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--text); font-weight:600; flex-shrink:0; }
+  .var-eq { font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--text-dim); flex-shrink:0; }
+  .byte-blocks { display:flex; gap:2px; flex-shrink:0; }
+  .byte-block { width:9px; height:10px; border-radius:1px; flex-shrink:0; }
+  .byte-int{background:rgba(88,166,255,0.65);border:1px solid rgba(88,166,255,0.35)}
+  .byte-double{background:rgba(63,185,80,0.65);border:1px solid rgba(63,185,80,0.35)}
+  .byte-ref{background:rgba(240,198,116,0.65);border:1px solid rgba(240,198,116,0.35)}
+  .byte-char{background:rgba(247,120,186,0.65);border:1px solid rgba(247,120,186,0.35)}
+  .byte-empty{background:rgba(125,133,144,0.18);border:1px solid rgba(125,133,144,0.2)}
+  .var-val-wrap { font-family:'JetBrains Mono',monospace; font-size:0.65rem; flex-shrink:0; }
+  .var-paren{color:var(--text-dim)} .var-val{color:var(--blue)} .var-addr{color:var(--addr-color);font-weight:700} .var-empty-val{color:var(--text-dim);font-style:italic}
+  .byte-legend { display:flex; gap:6px; padding:3px 4px; font-size:0.57rem; color:var(--text-dim); border-top:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; margin-top:4px; }
+  .legend-item { display:flex; align-items:center; gap:3px; }
+  .legend-block { width:8px; height:8px; border-radius:1px; }
+  .heap-object { border:1px solid var(--border); border-radius:4px; background:var(--surface); overflow:hidden; animation:frameIn 0.25s ease; flex-shrink:0; }
+  .heap-title { padding:3px 8px; font-family:'JetBrains Mono',monospace; font-size:0.68rem; font-weight:700; color:var(--addr-color); border-bottom:1px solid var(--border); background:rgba(240,198,116,0.07); }
+  .heap-cells { display:flex; flex-direction:column; padding:5px 6px; gap:4px; }
+  .heap-cell { display:flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:3px; padding:3px 6px; background:var(--surface2); transition:background 0.3s, border-color 0.3s; }
+  .heap-cell.changed { background:rgba(249,115,22,0.15); border-color:var(--orange); }
+  .heap-idx { font-family:'JetBrains Mono',monospace; font-size:0.58rem; color:var(--text-dim); flex-shrink:0; width:20px; }
+  .heap-cell-val { font-family:'JetBrains Mono',monospace; font-size:0.7rem; color:var(--text); font-weight:600; }
+  .heap-string-body { padding:5px 8px; display:flex; align-items:center; gap:8px; }
+  .heap-string-val { font-family:'JetBrains Mono',monospace; font-size:0.7rem; color:var(--char-color); font-weight:600; }
+  .output-area{padding:4px 10px;border-top:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--green);background:var(--surface);flex-shrink:0;min-height:24px}
+  footer{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;gap:14px}
+  .explanation{font-size:0.8rem;color:var(--text-dim);flex:1;line-height:1.45}
+  .explanation span{color:var(--orange);font-weight:600}
+  .explanation .addr{color:var(--addr-color);font-weight:700;font-family:'JetBrains Mono',monospace;font-size:0.75rem}
+  .explanation .hl-ref{color:var(--teal);font-weight:600}
+  .explanation .hl-val{color:var(--blue);font-weight:600}
+  .explanation .hl-green{color:var(--green);font-weight:600}
+  .nav-btns { display:flex; gap:8px; flex-shrink:0; }
+  .btn{background:var(--orange);color:white;border:none;padding:7px 18px;border-radius:5px;font-family:'Space Grotesk',sans-serif;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+  .btn:hover{background:#ea580c;transform:translateY(-1px)} .btn:disabled{background:var(--border);color:var(--text-dim);cursor:not-allowed;transform:none}
+  .btn-prev{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);}
+  .btn-prev:hover:not(:disabled){background:var(--border);color:var(--text);transform:translateY(-1px);}
+</style>
+</head>
+<body>
+<header>
+  <h1>Stack &amp; Heap — v2.4: Value vs Reference Parameters</h1>
+  <div class="step-counter">Step <span id="stepNum">0</span> / <span id="totalSteps">0</span></div>
+</header>
+<div class="progress"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+<div class="main">
+  <div class="code-panel">
+    <div class="panel-title">C# Code</div>
+    <div class="code-scroll"><div id="codeLines"></div></div>
+  </div>
+  <div class="diagram-panel">
+    <div class="panel-title">Memory</div>
+    <div class="diagram-content">
+      <div class="stack-area">
+        <div class="area-label">Stack</div>
+        <div class="frames-container" id="framesContainer"></div>
+        <div class="byte-legend">
+          <div class="legend-item"><div class="legend-block" style="background:rgba(88,166,255,0.65)"></div>int (4B)</div>
+          <div class="legend-item"><div class="legend-block" style="background:rgba(63,185,80,0.65)"></div>double (8B)</div>
+          <div class="legend-item"><div class="legend-block" style="background:rgba(240,198,116,0.65)"></div>ref (4B)</div>
+          <div class="legend-item"><div class="legend-block" style="background:rgba(247,120,186,0.65)"></div>char (2B)</div>
+        </div>
+      </div>
+      <div class="heap-area">
+        <div class="area-label">Heap</div>
+        <div class="heap-container" id="heapContainer"></div>
+      </div>
+    </div>
+    <div class="output-area" id="outputArea"></div>
+  </div>
+</div>
+<footer>
+  <div class="explanation" id="explanation">Click <span>Next Step</span> to begin.</div>
+  <div class="nav-btns">
+    <button class="btn btn-prev" id="prevBtn" onclick="prevStep()" disabled>← Back</button>
+    <button class="btn" id="nextBtn" onclick="nextStep()">Next Step →</button>
+  </div>
+</footer>
+<div dir="ltr" style="position:fixed;bottom:8px;left:50%;transform:translateX(-50%);font-size:0.6rem;color:rgba(255,255,255,0.5);z-index:1000;pointer-events:none;white-space:nowrap;">
+  © Hagit Yidov 2026 &nbsp;|&nbsp; <span style="font-size:0.75rem;">חגית ידוב</span>
+</div>
+
+<script>
+const STR_ADDR = '0x2C81';
+const ARR_ADDR = '0x1A3F';
+
+const ARR_ORIG = [{i:0,v:65,ch:false},{i:1,v:72,ch:false},{i:2,v:83,ch:false}];
+const ARR_1    = [{i:0,v:75,ch:true}, {i:1,v:72,ch:false},{i:2,v:83,ch:false}];
+const ARR_2    = [{i:0,v:75,ch:true}, {i:1,v:82,ch:true}, {i:2,v:83,ch:false}];
+const ARR_MOD  = [{i:0,v:75,ch:true}, {i:1,v:82,ch:true}, {i:2,v:93,ch:true}];
+
+const lv = (n,val,bt) => ({n, val:val===undefined?null:val, kind:'local', bt:bt||'int', isAddr:bt==='ref'});
+const pv = (n,val,bt) => ({n, val:val===undefined?null:val, kind:'param', bt:bt||'int', isAddr:bt==='ref'});
+
+const F = {
+  main:(v)=>({label:'Main',           cls:'main-frame', vars:v}),
+  cfg: (v)=>({label:'CalcFinalGrade', cls:'cfg-frame',  vars:v}),
+  ab:  (v)=>({label:'ApplyBonus',     cls:'ab-frame',   vars:v}),
+  ca:  (v)=>({label:'CalcAverage',    cls:'ca-frame',   vars:v}),
+  pr:  (v)=>({label:'PrintResult',    cls:'pr-frame',   vars:v}),
+};
+
+// Main frame variable states
+const mainBase   = ()=>[lv('bonus','5','int'), lv('grades',ARR_ADDR,'ref'), lv('studentName',STR_ADDR,'ref')];
+const mainCfgE   = ()=>[...mainBase(), lv('finalGrade',null,'int')];
+const mainCfgD   = ()=>[...mainBase(), lv('finalGrade','83','int')];
+
+// CalcFinalGrade frame variable states
+const cfgBase    = ()=>[pv('grades',ARR_ADDR,'ref'), pv('bonus','5','int')];
+const cfgAvgE    = ()=>[...cfgBase(), lv('avg',null,'double')];
+const cfgAvgD    = ()=>[...cfgBase(), lv('avg','83.33','double')];
+
+// ApplyBonus frame variable states
+const abBase     = ()=>[pv('arr',ARR_ADDR,'ref'), pv('bonus','5','int')];
+const abPts10    = ()=>[pv('arr',ARR_ADDR,'ref'), pv('bonus','10','int')];
+const abLoop     = (i)=>[pv('arr',ARR_ADDR,'ref'), pv('bonus','10','int'), lv('i',String(i),'int')];
+const abDone     = ()=>[pv('arr',ARR_ADDR,'ref'), pv('bonus','10','int'), lv('i','3','int')];
+
+// CalcAverage frame variable states
+const caBase     = ()=>[pv('data',ARR_ADDR,'ref')];
+const caSum0     = ()=>[...caBase(), lv('sum','0','int')];
+const caLoop     = (s,i)=>[pv('data',ARR_ADDR,'ref'), lv('sum',String(s),'int'), lv('i',String(i),'int')];
+const caLoopDone = ()=>[pv('data',ARR_ADDR,'ref'), lv('sum','250','int'), lv('i','3','int')];
+const caFull     = ()=>[pv('data',ARR_ADDR,'ref'), lv('sum','250','int'), lv('i','3','int'), lv('avg','83.33','double')];
+
+const codeLines = [
+  // Main
+  {t:'<span class="kw">static</span> <span class="kw">void</span> <span class="fn">Main</span><span class="bracket">()</span>',i:0,id:'main_sig'},
+  {t:'<span class="bracket">{</span>',i:0},
+  {t:'<span class="type">int</span> bonus <span class="op">=</span> <span class="num">5</span>;',i:1,id:'main_bonus'},
+  {t:'<span class="type">int</span>[] grades <span class="op">=</span> <span class="bracket">{</span><span class="num">65</span>, <span class="num">72</span>, <span class="num">83</span><span class="bracket">}</span>;',i:1,id:'main_grades'},
+  {t:'<span class="type">string</span> studentName <span class="op">=</span> Console.<span class="fn">ReadLine</span><span class="bracket">()</span>;',i:1,id:'main_name'},
+  {t:'<span class="type">int</span> finalGrade <span class="op">=</span> <span class="fn">CalcFinalGrade</span><span class="bracket">(</span>grades, bonus<span class="bracket">)</span>;',i:1,id:'main_cfg_call'},
+  {t:'<span class="fn">PrintResult</span><span class="bracket">(</span>studentName, finalGrade<span class="bracket">)</span>;',i:1,id:'main_pr_call'},
+  {t:'<span class="bracket">}</span>',i:0,id:'main_close'},
+  {t:'',i:0},
+  // CalcFinalGrade
+  {t:'<span class="kw">static</span> <span class="type">int</span> <span class="fn">CalcFinalGrade</span><span class="bracket">(</span><span class="type">int</span>[] grades, <span class="type">int</span> bonus<span class="bracket">)</span>',i:0,id:'cfg_sig'},
+  {t:'<span class="bracket">{</span>',i:0},
+  {t:'<span class="fn">ApplyBonus</span><span class="bracket">(</span>grades, bonus<span class="bracket">)</span>;',i:1,id:'cfg_ab_call'},
+  {t:'<span class="type">double</span> avg <span class="op">=</span> <span class="fn">CalcAverage</span><span class="bracket">(</span>grades<span class="bracket">)</span>;',i:1,id:'cfg_ca_call'},
+  {t:'<span class="kw">return</span> <span class="bracket">(</span><span class="type">int</span><span class="bracket">)</span>avg;',i:1,id:'cfg_return'},
+  {t:'<span class="bracket">}</span>',i:0},
+  {t:'',i:0},
+  // ApplyBonus
+  {t:'<span class="kw">static</span> <span class="kw">void</span> <span class="fn">ApplyBonus</span><span class="bracket">(</span><span class="type">int</span>[] arr, <span class="type">int</span> bonus<span class="bracket">)</span>',i:0,id:'ab_sig'},
+  {t:'<span class="bracket">{</span>',i:0},
+  {t:'bonus <span class="op">=</span> bonus <span class="op">*</span> <span class="num">2</span>;',i:1,id:'ab_pts'},
+  {t:'<span class="kw">for</span> <span class="bracket">(</span><span class="type">int</span> i <span class="op">=</span> <span class="num">0</span>; i <span class="op">&lt;</span> arr.Length; i<span class="op">++</span><span class="bracket">)</span>',i:1,id:'ab_for'},
+  {t:'    arr[i] <span class="op">=</span> arr[i] <span class="op">+</span> bonus;',i:1,id:'ab_body'},
+  {t:'<span class="bracket">}</span>',i:0,id:'ab_close'},
+  {t:'',i:0},
+  // CalcAverage
+  {t:'<span class="kw">static</span> <span class="type">double</span> <span class="fn">CalcAverage</span><span class="bracket">(</span><span class="type">int</span>[] data<span class="bracket">)</span>',i:0,id:'ca_sig'},
+  {t:'<span class="bracket">{</span>',i:0},
+  {t:'<span class="type">int</span> sum <span class="op">=</span> <span class="num">0</span>;',i:1,id:'ca_sum'},
+  {t:'<span class="kw">for</span> <span class="bracket">(</span><span class="type">int</span> i <span class="op">=</span> <span class="num">0</span>; i <span class="op">&lt;</span> data.Length; i<span class="op">++</span><span class="bracket">)</span>',i:1,id:'ca_for'},
+  {t:'    sum <span class="op">=</span> sum <span class="op">+</span> data[i];',i:1,id:'ca_body'},
+  {t:'<span class="type">double</span> avg <span class="op">=</span> <span class="bracket">(</span><span class="type">double</span><span class="bracket">)</span>sum <span class="op">/</span> data.Length;',i:1,id:'ca_avg'},
+  {t:'<span class="kw">return</span> avg;',i:1,id:'ca_return'},
+  {t:'<span class="bracket">}</span>',i:0},
+  {t:'',i:0},
+  // PrintResult
+  {t:'<span class="kw">static</span> <span class="kw">void</span> <span class="fn">PrintResult</span><span class="bracket">(</span><span class="type">string</span> name, <span class="type">int</span> finalGrade<span class="bracket">)</span>',i:0,id:'pr_sig'},
+  {t:'<span class="bracket">{</span>',i:0},
+  {t:'Console.<span class="fn">WriteLine</span><span class="bracket">(</span>name <span class="op">+</span> <span class="str">": "</span> <span class="op">+</span> finalGrade<span class="bracket">)</span>;',i:1,id:'pr_write'},
+  {t:'<span class="bracket">}</span>',i:0,id:'pr_close'},
+];
+
+// steps: line=orange, marks=green callmarks[], stack, arr, heap, out, expl
+const steps = [
+  {line:null,          marks:[],                              stack:[], arr:ARR_ORIG, heap:[], out:'',
+   expl:'Click <span>Next Step</span> to begin.'},
+
+  // Main setup — string first, then array
+  {line:'main_bonus',  marks:[],                              stack:[F.main([lv('bonus','5','int')])], arr:ARR_ORIG, heap:[], out:'',
+   expl:'<span>Main()</span> starts. <span>bonus</span> = 5, a primitive int — 4 bytes on the stack.'},
+
+  {line:'main_grades', marks:[],                              stack:[F.main([lv('bonus','5','int'), lv('grades',ARR_ADDR,'ref')])], arr:ARR_ORIG, heap:['array'], out:'',
+   expl:'<span>grades</span> is a reference — 4 bytes on stack (address <span class="addr">'+ARR_ADDR+'</span>). Array {65, 72, 83} lives on the heap.'},
+
+  {line:'main_name',   marks:[],                              stack:[F.main(mainBase())], arr:ARR_ORIG, heap:['string','array'], out:'',
+   expl:'User types a name. String allocated on heap at <span class="addr">'+STR_ADDR+'</span>. <span>studentName</span> holds that address — 4 bytes on stack. Now we have TWO heap objects!'},
+
+  // Call CalcFinalGrade
+  {line:'cfg_sig',     marks:['main_cfg_call'],               stack:[F.main(mainCfgE()), F.cfg(cfgBase())], arr:ARR_ORIG, heap:['string','array'], out:'',
+   expl:'Calling <span>CalcFinalGrade(grades, bonus)</span>. <span class="hl-green">Green mark</span> = return point. <span class="hl-ref">grades</span> → copy of address. <span class="hl-val">bonus</span> → copy of value 5. Slot for <span>finalGrade</span> reserved.'},
+
+  // Call ApplyBonus from CalcFinalGrade
+  {line:'ab_sig',      marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abBase())], arr:ARR_ORIG, heap:['string','array'], out:'',
+   expl:'Calling <span>ApplyBonus(grades, bonus)</span>. Two <span class="hl-green">green marks</span> — full return path visible. <span class="hl-ref">arr</span> → copy of address. <span class="hl-val">bonus</span> → copy of value 5.'},
+
+  {line:'ab_pts',      marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abPts10())], arr:ARR_ORIG, heap:['string','array'], out:'',
+   expl:'<span class="hl-val">bonus = bonus * 2 = 10</span>. Local copy changes. CalcFinalGrade\'s <span>bonus</span> is still 5 — value type, caller NOT affected!'},
+
+  // ApplyBonus loop — one click per iteration, for+body combined
+  {line:'ab_body',     marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abLoop(0))], arr:ARR_1, heap:['string','array'], out:'',
+   expl:'Loop i=0: arr[0] = 65 + 10 = <span>75</span>. Heap modified directly via reference!'},
+
+  {line:'ab_body',     marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abLoop(1))], arr:ARR_2, heap:['string','array'], out:'',
+   expl:'Loop i=1: arr[1] = 72 + 10 = <span>82</span>. Heap updated again.'},
+
+  {line:'ab_body',     marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abLoop(2))], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'Loop i=2: arr[2] = 83 + 10 = <span>93</span>. All three grades updated. Loop ends.'},
+
+  // ApplyBonus return — frame stays on close line
+  {line:'ab_close',    marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab([pv('arr',ARR_ADDR,'ref'), pv('bonus','10','int')])], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'<span>ApplyBonus</span> done. Key contrast: <span class="hl-val">bonus = 10 inside — but caller\'s bonus still 5!</span> <span class="hl-ref">Heap grades = {75, 82, 93} — changed!</span>'},
+
+  // Back in CalcFinalGrade after ApplyBonus
+  {line:'cfg_ab_call', marks:['main_cfg_call'],               stack:[F.main(mainCfgE()), F.cfg(cfgBase())], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'Frame gone. Back at <span class="hl-green">green mark</span> in CalcFinalGrade. <span class="hl-val">bonus still 5</span>. <span class="hl-ref">Heap grades = {75, 82, 93}</span>.'},
+
+  // Call CalcAverage from CalcFinalGrade
+  {line:'ca_sig',      marks:['main_cfg_call','cfg_ca_call'], stack:[F.main(mainCfgE()), F.cfg(cfgAvgE()), F.ca(caBase())], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'Calling <span>CalcAverage(grades)</span>. Two <span class="hl-green">green marks</span> again. <span>data</span> → copy of address <span class="addr">'+ARR_ADDR+'</span>. Slot for <span>avg</span> reserved (8 bytes).'},
+
+  {line:'ca_sum',      marks:['main_cfg_call','cfg_ca_call'], stack:[F.main(mainCfgE()), F.cfg(cfgAvgE()), F.ca(caSum0())], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'<span>sum = 0</span>. Loop will accumulate 75 + 82 + 93.'},
+
+  // CalcAverage loop — one click per iteration, for+body combined
+  {line:'ca_body',     marks:['main_cfg_call','cfg_ca_call'], stack:[F.main(mainCfgE()), F.cfg(cfgAvgE()), F.ca(caLoop(75,0))], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'Loop i=0: sum = 0 + data[0] = 0 + 75 = <span>75</span>. Array only READ here — no heap changes.'},
+
+  {line:'ca_body',     marks:['main_cfg_call','cfg_ca_call'], stack:[F.main(mainCfgE()), F.cfg(cfgAvgE()), F.ca(caLoop(157,1))], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'Loop i=1: sum = 75 + data[1] = 75 + 82 = <span>157</span>.'},
+
+  {line:'ca_body',     marks:['main_cfg_call','cfg_ca_call'], stack:[F.main(mainCfgE()), F.cfg(cfgAvgE()), F.ca(caLoopDone())], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'Loop i=2: sum = 157 + data[2] = 157 + 93 = <span>250</span>. Loop ends.'},
+
+  {line:'ca_avg',      marks:['main_cfg_call','cfg_ca_call'], stack:[F.main(mainCfgE()), F.cfg(cfgAvgE()), F.ca([pv('data',ARR_ADDR,'ref'), lv('sum','250','int'), lv('avg','83.33','double')])], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'avg = 250.0 / 3 = <span>83.33</span>. A double — 8 bytes on the stack. Notice: more space than an int!'},
+
+  // CalcAverage return — frame stays on return line
+  {line:'ca_return',   marks:['main_cfg_call','cfg_ca_call'], stack:[F.main(mainCfgE()), F.cfg(cfgAvgE()), F.ca([pv('data',ARR_ADDR,'ref'), lv('sum','250','int'), lv('avg','83.33','double')])], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'<span>CalcAverage</span> about to return 83.33. Frame still visible — see the value before it goes!'},
+
+  // Back in CalcFinalGrade after CalcAverage
+  {line:'cfg_ca_call', marks:['main_cfg_call'],               stack:[F.main(mainCfgE()), F.cfg(cfgAvgD())], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'Back at <span class="hl-green">green mark</span> in CalcFinalGrade. <span>avg = 83.33</span> assigned (8 bytes).'},
+
+  // CalcFinalGrade return — frame stays on return line
+  {line:'cfg_return',  marks:['main_cfg_call'],               stack:[F.main(mainCfgE()), F.cfg(cfgAvgD())], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'<span>CalcFinalGrade</span> about to return (int)83.33 = <span>83</span>. Frame still visible!'},
+
+  // Back in Main after CalcFinalGrade
+  {line:'main_cfg_call',marks:[],                             stack:[F.main(mainCfgD())], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'Back at <span class="hl-green">green mark</span> in Main. <span>finalGrade = 83</span> assigned.'},
+
+  // Call PrintResult
+  {line:'pr_sig',      marks:['main_pr_call'],                stack:[F.main(mainCfgD()), F.pr([pv('name',STR_ADDR,'ref'), pv('finalGrade','83','int')])], arr:ARR_MOD, heap:['string','array'], out:'',
+   expl:'Calling <span>PrintResult(studentName, finalGrade)</span>. <span>name</span> → copy of address <span class="addr">'+STR_ADDR+'</span>. <span>finalGrade</span> → copy of 83 (int, 4 bytes).'},
+
+  {line:'pr_write',    marks:['main_pr_call'],                stack:[F.main(mainCfgD()), F.pr([pv('name',STR_ADDR,'ref'), pv('finalGrade','83','int')])], arr:ARR_MOD, heap:['string','array'], out:'> Dana: 83',
+   expl:'Console.WriteLine reads "Dana" from heap at <span class="addr">'+STR_ADDR+'</span> and prints with finalGrade.'},
+
+  // PrintResult return — frame stays on close line
+  {line:'pr_close',    marks:['main_pr_call'],                stack:[F.main(mainCfgD()), F.pr([pv('name',STR_ADDR,'ref'), pv('finalGrade','83','int')])], arr:ARR_MOD, heap:['string','array'], out:'> Dana: 83',
+   expl:'<span>PrintResult</span> done. Frame still visible before popping.'},
+
+  // Back in Main
+  {line:'main_close',  marks:[],                              stack:[F.main(mainCfgD())], arr:ARR_MOD, heap:['string','array'], out:'> Dana: 83',
+   expl:'Back in <span>Main</span>. All done. Main about to end.'},
+
+  // Orphaned heap
+  {line:null,          marks:[],                              stack:[], arr:ARR_MOD, heap:['string','array'], out:'> Dana: 83',
+   expl:'<span>Main()</span> frame popped. Stack is empty. Both heap objects still there — orphaned, no references pointing to them anymore.'},
+
+  // GC
+  {line:null,          marks:[],                              stack:[], arr:ARR_ORIG, heap:[], out:'> Dana: 83',
+   expl:'Garbage collector cleans up the heap. Both objects gone. Program done.'},
+];
+
+const totalSteps = steps.length - 1;
+let currentStep = 0;
+document.getElementById('totalSteps').textContent = totalSteps;
+
+function buildCode() {
+  const container = document.getElementById('codeLines');
+  codeLines.forEach((line, idx) => {
+    const div = document.createElement('div');
+    div.className = 'code-line';
+    if (line.id) div.dataset.id = line.id;
+    const num = document.createElement('span');
+    num.className = 'line-num';
+    num.textContent = idx + 1;
+    const content = document.createElement('span');
+    content.className = 'line-content';
+    content.style.paddingLeft = (line.i * 16) + 'px';
+    content.innerHTML = line.t;
+    div.appendChild(num);
+    div.appendChild(content);
+    container.appendChild(div);
+  });
+}
+
+function highlightLine(activeId, markIds) {
+  document.querySelectorAll('.code-line').forEach(el => el.classList.remove('active','callmark'));
+  if (markIds) markIds.forEach(id => {
+    const el = document.querySelector(`.code-line[data-id="${id}"]`);
+    if (el) el.classList.add('callmark');
+  });
+  if (activeId) {
+    const el = document.querySelector(`.code-line[data-id="${activeId}"]`);
+    if (el) { el.classList.add('active'); el.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+  }
+}
+
+function makeByteBlocks(bt, isEmpty, count) {
+  const wrap = document.createElement('div');
+  wrap.className = 'byte-blocks';
+  const n = count !== undefined ? count : (bt==='double'?8:bt==='char'?2:4);
+  const cls = isEmpty?'byte-empty':(bt==='double'?'byte-double':bt==='ref'?'byte-ref':bt==='char'?'byte-char':'byte-int');
+  for(let i=0;i<n;i++){const b=document.createElement('div');b.className=`byte-block ${cls}`;wrap.appendChild(b);}
+  return wrap;
+}
+
+function buildStack(frames) {
+  const frag = document.createDocumentFragment();
+  [...frames].reverse().forEach(frame => {
+    const div = document.createElement('div');
+    div.className = `frame ${frame.cls}`;
+    const side = document.createElement('div');
+    side.className = 'frame-side';
+    const st = document.createElement('span');
+    st.className = 'frame-side-text';
+    st.textContent = frame.label;
+    side.appendChild(st);
+    div.appendChild(side);
+    const body = document.createElement('div');
+    body.className = 'frame-body';
+    frame.vars.forEach(vr => {
+      const empty = vr.val===null;
+      const row = document.createElement('div');
+      row.className = `var-row ${vr.kind==='param'?'is-param':''}`;
+      const badge = document.createElement('span');
+      badge.className = `var-badge ${vr.kind==='param'?'badge-param':'badge-local'}`;
+      badge.textContent = vr.kind==='param'?'param':'local';
+      const name = document.createElement('span');
+      name.className = 'var-name'; name.textContent = vr.n;
+      const eq = document.createElement('span');
+      eq.className = 'var-eq'; eq.textContent = ' = ';
+      const blocks = makeByteBlocks(vr.bt, empty);
+      const valWrap = document.createElement('span');
+      valWrap.className = 'var-val-wrap';
+      if(empty) valWrap.innerHTML='<span class="var-paren">(</span><span class="var-empty-val">—</span><span class="var-paren">)</span>';
+      else if(vr.isAddr) valWrap.innerHTML=`<span class="var-paren">(</span><span class="var-addr">${vr.val}</span><span class="var-paren">)</span>`;
+      else valWrap.innerHTML=`<span class="var-paren">(</span><span class="var-val">${vr.val}</span><span class="var-paren">)</span>`;
+      row.appendChild(badge);row.appendChild(name);row.appendChild(eq);row.appendChild(blocks);row.appendChild(valWrap);
+      body.appendChild(row);
+    });
+    div.appendChild(body);
+    frag.appendChild(div);
+  });
+  return frag;
+}
+
+function buildHeap(items, arrData) {
+  const frag = document.createDocumentFragment();
+
+  if(items.includes('array')) {
+    const obj = document.createElement('div');
+    obj.className = 'heap-object';
+    const title = document.createElement('div');
+    title.className = 'heap-title';
+    title.textContent = ARR_ADDR;
+    obj.appendChild(title);
+    const cells = document.createElement('div');
+    cells.className = 'heap-cells';
+    arrData.forEach(c => {
+      const cell = document.createElement('div');
+      cell.className = `heap-cell${c.ch?' changed':''}`;
+      const idx = document.createElement('div');
+      idx.className = 'heap-idx'; idx.textContent = `[${c.i}]`;
+      const blocks = makeByteBlocks('int',false);
+      const val = document.createElement('div');
+      val.className = 'heap-cell-val'; val.textContent = c.v;
+      cell.appendChild(idx); cell.appendChild(blocks); cell.appendChild(val);
+      cells.appendChild(cell);
+    });
+    obj.appendChild(cells);
+    frag.appendChild(obj);
+  }
+
+  if(items.includes('string')) {
+    const obj = document.createElement('div');
+    obj.className = 'heap-object';
+    const title = document.createElement('div');
+    title.className = 'heap-title';
+    title.textContent = STR_ADDR;
+    obj.appendChild(title);
+    const body = document.createElement('div');
+    body.className = 'heap-string-body';
+    const blocks = makeByteBlocks('char',false,8);
+    const val = document.createElement('div');
+    val.className = 'heap-string-val';
+    val.textContent = '("Dana")';
+    body.appendChild(blocks); body.appendChild(val);
+    obj.appendChild(body);
+    frag.appendChild(obj);
+  }
+
+  return frag;
+}
+
+function applyStep(idx) {
+  const step = steps[idx];
+  highlightLine(step.line, step.marks);
+  const fc = document.getElementById('framesContainer');
+  fc.innerHTML=''; fc.appendChild(buildStack(step.stack));
+  const hc = document.getElementById('heapContainer');
+  hc.innerHTML=''; hc.appendChild(buildHeap(step.heap, step.arr));
+  document.getElementById('outputArea').textContent = step.out;
+  //document.getElementById('explanation').innerHTML = step.expl;
+  document.getElementById('stepNum').textContent = idx;
+  document.getElementById('progressBar').style.width=(idx/totalSteps*100)+'%';
+  document.getElementById('nextBtn').disabled = idx>=totalSteps;
+  document.getElementById('prevBtn').disabled = idx<=0;
+}
+
+function nextStep(){if(currentStep<totalSteps){currentStep++;applyStep(currentStep);}}
+function prevStep(){if(currentStep>0){currentStep--;applyStep(currentStep);}}
+
+buildCode();
+applyStep(0);
+</script>
+</body>
+</html>
