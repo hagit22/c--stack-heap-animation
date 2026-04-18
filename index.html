@@ -166,10 +166,10 @@ const cfgAvgE    = ()=>[...cfgBase(), lv('avg',null,'double')];
 const cfgAvgD    = ()=>[...cfgBase(), lv('avg','83.33','double')];
 
 // ApplyBonus frame variable states
-const abBase     = ()=>[pv('arr',ARR_ADDR,'ref'), pv('bonus','5','int')];
-const abPts10    = ()=>[pv('arr',ARR_ADDR,'ref'), pv('bonus','10','int')];
-const abLoop     = (i)=>[pv('arr',ARR_ADDR,'ref'), pv('bonus','10','int'), lv('i',String(i),'int')];
-const abDone     = ()=>[pv('arr',ARR_ADDR,'ref'), pv('bonus','10','int'), lv('i','3','int')];
+const abBase     = ()=>[pv('grades',ARR_ADDR,'ref'), pv('bonus','5','int')];
+const abPts10    = ()=>[pv('grades',ARR_ADDR,'ref'), pv('bonus','10','int')];
+const abLoop     = (i)=>[pv('grades',ARR_ADDR,'ref'), pv('bonus','10','int'), lv('i',String(i),'int')];
+const abDone     = ()=>[pv('grades',ARR_ADDR,'ref'), pv('bonus','10','int'), lv('i','3','int')];
 
 // CalcAverage frame variable states
 const caBase     = ()=>[pv('data',ARR_ADDR,'ref')];
@@ -198,11 +198,11 @@ const codeLines = [
   {t:'<span class="bracket">}</span>',i:0},
   {t:'',i:0},
   // ApplyBonus
-  {t:'<span class="kw">static</span> <span class="kw">void</span> <span class="fn">ApplyBonus</span><span class="bracket">(</span><span class="type">int</span>[] arr, <span class="type">int</span> bonus<span class="bracket">)</span>',i:0,id:'ab_sig'},
+  {t:'<span class="kw">static</span> <span class="kw">void</span> <span class="fn">ApplyBonus</span><span class="bracket">(</span><span class="type">int</span>[] grades, <span class="type">int</span> bonus<span class="bracket">)</span>',i:0,id:'ab_sig'},
   {t:'<span class="bracket">{</span>',i:0},
   {t:'bonus <span class="op">=</span> bonus <span class="op">*</span> <span class="num">2</span>;',i:1,id:'ab_pts'},
-  {t:'<span class="kw">for</span> <span class="bracket">(</span><span class="type">int</span> i <span class="op">=</span> <span class="num">0</span>; i <span class="op">&lt;</span> arr.Length; i<span class="op">++</span><span class="bracket">)</span>',i:1,id:'ab_for'},
-  {t:'    arr[i] <span class="op">=</span> arr[i] <span class="op">+</span> bonus;',i:1,id:'ab_body'},
+  {t:'<span class="kw">for</span> <span class="bracket">(</span><span class="type">int</span> i <span class="op">=</span> <span class="num">0</span>; i <span class="op">&lt;</span> grades.Length; i<span class="op">++</span><span class="bracket">)</span>',i:1,id:'ab_for'},
+  {t:'    grades[i] <span class="op">=</span> grades[i] <span class="op">+</span> bonus;',i:1,id:'ab_body'},
   {t:'<span class="bracket">}</span>',i:0,id:'ab_close'},
   {t:'',i:0},
   // CalcAverage
@@ -222,7 +222,7 @@ const codeLines = [
   {t:'<span class="bracket">}</span>',i:0,id:'pr_close'},
 ];
 
-// steps: line=orange, marks=green callmarks[], stack, arr, heap, out, expl
+// steps: line=orange, marks=green callmarks[], stack, grades, heap, out, expl
 const steps = [
   {line:null,          marks:[],                              stack:[], arr:ARR_ORIG, heap:[], out:'',
    expl:'Click <span>Next Step</span> to begin.'},
@@ -243,23 +243,23 @@ const steps = [
 
   // Call ApplyBonus from CalcFinalGrade
   {line:'ab_sig',      marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abBase())], arr:ARR_ORIG, heap:['string','array'], out:'',
-   expl:'Calling <span>ApplyBonus(grades, bonus)</span>. Two <span class="hl-green">green marks</span> — full return path visible. <span class="hl-ref">arr</span> → copy of address. <span class="hl-val">bonus</span> → copy of value 5.'},
+   expl:'Calling <span>ApplyBonus(grades, bonus)</span>. Two <span class="hl-green">green marks</span> — full return path visible. <span class="hl-ref">grades</span> → copy of address. <span class="hl-val">bonus</span> → copy of value 5.'},
 
   {line:'ab_pts',      marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abPts10())], arr:ARR_ORIG, heap:['string','array'], out:'',
    expl:'<span class="hl-val">bonus = bonus * 2 = 10</span>. Local copy changes. CalcFinalGrade\'s <span>bonus</span> is still 5 — value type, caller NOT affected!'},
 
   // ApplyBonus loop — one click per iteration, for+body combined
   {line:'ab_body',     marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abLoop(0))], arr:ARR_1, heap:['string','array'], out:'',
-   expl:'Loop i=0: arr[0] = 65 + 10 = <span>75</span>. Heap modified directly via reference!'},
+   expl:'Loop i=0: grades[0] = 65 + 10 = <span>75</span>. Heap modified directly via reference!'},
 
   {line:'ab_body',     marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abLoop(1))], arr:ARR_2, heap:['string','array'], out:'',
-   expl:'Loop i=1: arr[1] = 72 + 10 = <span>82</span>. Heap updated again.'},
+   expl:'Loop i=1: grades[1] = 72 + 10 = <span>82</span>. Heap updated again.'},
 
   {line:'ab_body',     marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab(abLoop(2))], arr:ARR_MOD, heap:['string','array'], out:'',
-   expl:'Loop i=2: arr[2] = 83 + 10 = <span>93</span>. All three grades updated. Loop ends.'},
+   expl:'Loop i=2: grades[2] = 83 + 10 = <span>93</span>. All three grades updated. Loop ends.'},
 
   // ApplyBonus return — frame stays on close line
-  {line:'ab_close',    marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab([pv('arr',ARR_ADDR,'ref'), pv('bonus','10','int')])], arr:ARR_MOD, heap:['string','array'], out:'',
+  {line:'ab_close',    marks:['main_cfg_call','cfg_ab_call'], stack:[F.main(mainCfgE()), F.cfg(cfgBase()), F.ab([pv('grades',ARR_ADDR,'ref'), pv('bonus','10','int')])], arr:ARR_MOD, heap:['string','array'], out:'',
    expl:'<span>ApplyBonus</span> done. Key contrast: <span class="hl-val">bonus = 10 inside — but caller\'s bonus still 5!</span> <span class="hl-ref">Heap grades = {75, 82, 93} — changed!</span>'},
 
   // Back in CalcFinalGrade after ApplyBonus
